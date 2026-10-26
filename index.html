@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>楊梅高中圖書館島</title>
+<meta name="description" content="楊梅高中圖書館 3D 互動導覽：十座島嶼對應館內十個空間，可查看規則、常見問答並闖關收集徽章。">
+<meta name="theme-color" content="#2f56c9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12181b" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="圖書館島">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- 分享預覽 -->
+<meta property="og:title" content="楊梅高中圖書館島">
+<meta property="og:description" content="用 3D 島嶼逛圖書館，認識借閱規則並闖關集徽章。">
+<meta property="og:type" content="website">
+<meta property="og:image" content="icons/icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@700;900&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: full-bleed 3D archipelago; UI floats on it as paper slips — brand slip top-left, time strip bottom, zone card as a library catalog card on the right (bottom sheet on phones). */
+:root{
+  --paper:#f5f6f1; --paper-2:#e9ece3; --ink:#1c2427; --ink-soft:#5a6562; --line:#d3d8cc;
+  --cobalt:#2f56c9; --mustard:#cf9512; --ok:#2c8256; --bad:#bf4136;
+  --glass:rgba(245,246,241,.9); --shadow:0 10px 30px rgba(18,32,40,.18);
+  --f-display:"Noto Serif TC","Songti TC","PMingLiU",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#12181b; --paper-2:#1b2327; --ink:#e6ebe6; --ink-soft:#a1ada8; --line:#2c373b;
+  --cobalt:#86a2ff; --mustard:#f0bd44; --ok:#5cc58d; --bad:#ff8277;
+  --glass:rgba(18,24,27,.9); --shadow:0 10px 30px rgba(0,0,0,.45); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#12181b; --paper-2:#1b2327; --ink:#e6ebe6; --ink-soft:#a1ada8; --line:#2c373b;
+  --cobalt:#86a2ff; --mustard:#f0bd44; --ok:#5cc58d; --bad:#ff8277;
+  --glass:rgba(18,24,27,.9); --shadow:0 10px 30px rgba(0,0,0,.45); color-scheme:dark}
+
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+img{max-width:100%}
+html,body{height:100%;margin:0;overscroll-behavior:none;-webkit-text-size-adjust:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:17px;overflow:hidden;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--cobalt);outline-offset:2px}
+#scene{position:fixed;inset:0;background:#a9d6f0}
+#scene canvas{display:block;touch-action:none;-webkit-tap-highlight-color:transparent}
+.labels{position:absolute;inset:0;pointer-events:none}
+
+/* island name tags — styled like book spine labels */
+.tag{pointer-events:auto;display:flex;align-items:stretch;border:0;padding:0;background:none;transform:translateY(-6px);
+  filter:drop-shadow(0 4px 8px rgba(0,0,0,.22));transition:transform .2s}
+.tag:hover,.tag.hot{transform:translateY(-10px) scale(1.05)}
+.tag .sw{width:8px;border-radius:6px 0 0 6px}
+.tag .tx{background:#fbfbf7;color:#1c2427;padding:5px 10px 6px;border-radius:0 6px 6px 0;display:grid;gap:1px;text-align:left}
+.tag b{font-family:var(--f-display);font-weight:900;font-size:16px;letter-spacing:.02em;white-space:nowrap}
+.tag small{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;color:#5a6562;display:flex;gap:6px;align-items:center}
+.tag .got{color:#cf9512;font-family:var(--f-body);font-weight:700}
+
+/* floating UI */
+.hud{position:fixed;z-index:5}
+.slip{background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+#brand{top:calc(14px + env(safe-area-inset-top,0px));left:calc(14px + env(safe-area-inset-left,0px));padding:12px 16px 12px 14px;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 28px - 150px)}
+#brand .stamp{width:42px;height:42px;flex:none;border-radius:50%;border:2px solid var(--cobalt);color:var(--cobalt);display:grid;place-items:center;font-family:var(--f-display);font-weight:900;font-size:18px;transform:rotate(-8deg)}
+#brand h1{margin:0;font-family:var(--f-display);font-weight:900;font-size:22px;line-height:1.15;text-wrap:balance}
+#brand p{margin:2px 0 0;font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;color:var(--ink-soft);text-transform:uppercase}
+
+#tools{top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));display:flex;gap:6px;padding:6px}
+.ib{border:0;background:transparent;border-radius:9px;padding:8px 12px;font-size:15px;font-weight:500;display:flex;gap:6px;align-items:center}
+.ib:hover{background:var(--paper-2)}
+.ib[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+
+#badges{top:calc(96px + env(safe-area-inset-top,0px));left:calc(14px + env(safe-area-inset-left,0px));padding:9px 12px;display:flex;align-items:center;gap:10px;border:1px solid var(--line)}
+#badges .lbl{font-size:13px;color:var(--ink-soft)}
+#badges .cnt{font-family:var(--f-mono);font-size:14px;font-variant-numeric:tabular-nums}
+#badges .dots{display:flex;gap:4px}
+#badges .dots i{width:10px;height:14px;border-radius:2px;background:var(--line);transition:background .4s}
+
+#timebar{bottom:calc(14px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:6px;max-width:calc(100vw - 28px);overflow-x:auto}
+#clock{font-family:var(--f-mono);font-size:20px;font-variant-numeric:tabular-nums;padding:0 10px 0 8px;white-space:nowrap}
+#clock small{font-family:var(--f-body);font-size:12px;color:var(--ink-soft);margin-left:4px}
+.sep{width:1px;align-self:stretch;background:var(--line);margin:4px 4px}
+.tb{border:0;background:transparent;border-radius:9px;padding:8px 11px;font-size:15px;white-space:nowrap;display:grid;line-height:1.1;text-align:center}
+.tb small{font-family:var(--f-mono);font-size:10px;color:var(--ink-soft)}
+.tb:hover{background:var(--paper-2)}
+.tb[aria-pressed="true"]{background:var(--cobalt);color:#fff}
+.tb[aria-pressed="true"] small{color:rgba(255,255,255,.75)}
+
+/* catalog card panel */
+#panel{position:fixed;z-index:8;top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(84px + env(safe-area-inset-bottom,0px));width:min(420px,calc(100vw - 28px));
+  background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;animation:slidein .35s ease}
+@keyframes slidein{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
+.card-h,.tabs,.card-f{flex:none}
+.card-h{padding:18px 20px 14px;border-bottom:1px dashed var(--line);display:grid;grid-template-columns:1fr auto;gap:4px 12px;position:relative}
+.card-h::before{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;background:var(--zc,#2f56c9)}
+.callno{font-family:var(--f-mono);font-size:12px;letter-spacing:.1em;color:var(--ink-soft);display:flex;gap:8px;align-items:center}
+.callno .hole{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--line)}
+.card-h h2{margin:0;font-family:var(--f-display);font-weight:900;font-size:30px;line-height:1.15;grid-column:1}
+.card-h .en{font-size:13px;color:var(--ink-soft);grid-column:1;letter-spacing:.02em}
+.x{grid-column:2;grid-row:1/4;align-self:start;border:1px solid var(--line);background:var(--paper);border-radius:10px;width:40px;height:40px;font-size:20px;line-height:1}
+.tabs{display:flex;gap:2px;padding:10px 14px 0;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{border:0;background:none;padding:10px 12px 11px;font-size:16px;font-weight:500;color:var(--ink-soft);border-bottom:3px solid transparent;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--zc,#2f56c9)}
+.tab .mark{color:var(--mustard);font-weight:700}
+.card-b{flex:1;overflow-y:auto;padding:18px 20px 22px;font-size:18px;line-height:1.75}
+.card-b p{margin:0 0 14px;max-width:65ch}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 16px;font-size:17px}
+.kv dt{color:var(--ink-soft)}
+.kv dd{margin:0;font-weight:500;font-variant-numeric:tabular-nums}
+.rules{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.rules li{display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:baseline}
+.rules li span{font-family:var(--f-mono);font-size:13px;color:var(--ink-soft)}
+.src{margin:16px 0 0;font-size:14px;color:var(--ink-soft)}
+.faqs{display:grid;gap:10px}
+.faq{border:1px solid var(--line);border-radius:12px;background:var(--paper);overflow:hidden}
+.faq summary{cursor:pointer;list-style:none;padding:12px 14px;font-weight:700;font-size:17px;line-height:1.55;display:grid;grid-template-columns:22px 1fr;gap:8px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary span{font-family:var(--f-mono);color:var(--zc,#2f56c9)}
+.faq[open] summary{border-bottom:1px dashed var(--line)}
+.faq p{margin:0;padding:12px 14px 14px 44px;font-size:16px;line-height:1.7}
+.books{display:grid;gap:12px}
+.book{display:grid;grid-template-columns:14px 1fr;gap:14px;align-items:stretch}
+.book .spine{border-radius:3px;background:var(--bc)}
+.book h3{margin:0;font-family:var(--f-display);font-size:19px;line-height:1.35}
+.book .au{font-size:14px;color:var(--ink-soft);margin:2px 0 4px}
+.book p{margin:0;font-size:16px;line-height:1.6}
+.quiz-q{font-weight:700;margin:0 0 12px}
+.opts{display:grid;gap:8px}
+.opt{border:1.5px solid var(--line);background:var(--paper);border-radius:12px;padding:12px 14px;text-align:left;font-size:17px;display:flex;gap:10px;align-items:center}
+.opt:hover:not(:disabled){border-color:var(--zc,#2f56c9)}
+.opt .k{font-family:var(--f-mono);font-size:13px;color:var(--ink-soft);width:18px}
+.opt.right{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,var(--paper))}
+.opt.wrong{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--paper))}
+.opt:disabled{cursor:default}
+.fb{margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--paper-2);font-size:16px;line-height:1.6}
+.fb b{display:block;margin-bottom:2px}
+.retry{margin-top:10px;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:8px 14px;font-size:15px}
+.earned{display:flex;gap:10px;align-items:center;margin:0 0 14px;font-size:15px;color:var(--ink-soft)}
+.earned i{width:14px;height:18px;border-radius:2px;background:var(--zc)}
+.card-f{display:flex;justify-content:space-between;gap:8px;padding:10px 14px;border-top:1px solid var(--line);background:var(--paper-2)}
+.nav{border:0;background:none;border-radius:9px;padding:8px 10px;font-size:15px;color:var(--ink-soft)}
+.nav:hover{background:var(--paper);color:var(--ink)}
+
+/* overlays */
+.ov{position:fixed;inset:0;z-index:20;background:rgba(10,20,26,.42);display:grid;place-items:center;
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet{background:var(--paper);border-radius:18px;box-shadow:var(--shadow);width:min(560px,100%);max-height:100%;overflow:auto;padding:24px}
+.sheet h2{margin:0 0 6px;font-family:var(--f-display);font-weight:900;font-size:28px;text-wrap:balance}
+.sheet .sub{margin:0 0 18px;color:var(--ink-soft);font-size:15px}
+.steps{list-style:none;padding:0;margin:0 0 20px;display:grid;gap:12px}
+.steps li{display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:start;font-size:17px;line-height:1.6}
+.steps li b{width:32px;height:32px;border-radius:50%;background:var(--cobalt);color:#fff;display:grid;place-items:center;font-family:var(--f-mono);font-size:15px}
+.go{border:0;background:var(--cobalt);color:#fff;border-radius:12px;padding:12px 22px;font-size:17px;font-weight:700}
+#list .sheet{width:min(860px,100%)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.zc{border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:14px 14px 14px 18px;text-align:left;position:relative;display:grid;gap:4px;overflow:hidden}
+.zc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--zc)}
+.zc:hover{background:var(--paper-2)}
+.zc b{font-family:var(--f-display);font-size:19px}
+.zc small{font-family:var(--f-mono);font-size:11px;color:var(--ink-soft);letter-spacing:.08em}
+.zc span{font-size:14px;color:var(--ink-soft);line-height:1.55}
+.zc em{font-style:normal;font-size:13px;color:var(--mustard);font-weight:700}
+.lh{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:14px}
+
+#loader{position:fixed;inset:0;z-index:30;background:#1d3b4f;color:#f5f6f1;display:grid;place-items:center;transition:opacity .6s}
+#loader.done{opacity:0;pointer-events:none}
+#loader div{text-align:center;display:grid;gap:10px;justify-items:center}
+#loader b{font-family:var(--f-display);font-size:28px;font-weight:900}
+#loader span{font-family:var(--f-mono);font-size:12px;letter-spacing:.14em;opacity:.75}
+.shelf-ld{display:flex;gap:4px;align-items:end;height:40px}
+.shelf-ld i{width:9px;border-radius:2px;animation:bk 1s ease-in-out infinite}
+@keyframes bk{50%{transform:translateY(-8px)}}
+#fx{position:fixed;inset:0;z-index:25;pointer-events:none}
+#toast{position:fixed;z-index:26;left:50%;transform:translateX(-50%);top:calc(18px + env(safe-area-inset-top,0px));background:var(--ink);color:var(--paper);padding:12px 18px;border-radius:12px;font-size:16px;box-shadow:var(--shadow);max-width:calc(100vw - 32px)}
+
+@media (max-width:720px){
+  #brand{padding:9px 12px;gap:10px}
+  #brand .stamp{width:34px;height:34px;font-size:15px}
+  #brand h1{font-size:18px}
+  #brand p{display:none}
+  .tb small{display:none}
+  .tb{padding:9px 9px}
+  .sep{margin:4px 2px}
+  #tools .ib span{display:none}
+  #badges{top:calc(74px + env(safe-area-inset-top,0px))}
+  #panel{top:auto;left:calc(8px + env(safe-area-inset-left,0px));right:calc(8px + env(safe-area-inset-right,0px));bottom:calc(76px + env(safe-area-inset-bottom,0px));width:auto;max-height:58%;animation:sheetin .35s ease}
+  @keyframes sheetin{from{transform:translateY(30px);opacity:.4}to{transform:none;opacity:1}}
+  .card-h h2{font-size:25px}
+  .tb{padding:7px 8px;font-size:14px}
+  #clock{font-size:17px;padding:0 6px}
+  #clock small{display:none}
+}
+/* ---------- RWD ---------- */
+@media (min-width:721px) and (max-width:1100px){
+  #panel{width:min(370px,calc(100vw - 28px))}
+  .card-h h2{font-size:26px}
+  .card-b{font-size:17px}
+}
+@media (pointer:coarse){ .ib,.tb,.tab,.nav,.x{min-height:44px} .opt{min-height:52px} }
+@media (max-width:359px){ #clock{display:none} #badges .lbl{display:none} #brand h1{font-size:16px} }
+/* phone in landscape: card becomes a right-side column, bars slim down */
+@media (max-height:520px) and (orientation:landscape){
+  #brand{padding:7px 10px;gap:8px} #brand .stamp{width:30px;height:30px;font-size:13px} #brand h1{font-size:16px} #brand p{display:none}
+  #tools .ib span{display:none} #tools{padding:4px}
+  #badges{top:calc(60px + env(safe-area-inset-top,0px));padding:6px 10px} #badges .lbl{display:none}
+  #timebar{left:calc(14px + env(safe-area-inset-left,0px));transform:none;bottom:calc(8px + env(safe-area-inset-bottom,0px));padding:4px}
+  .tb{padding:6px 8px} .tb small{display:none} #clock{font-size:15px} #clock small{display:none}
+  #panel{top:calc(8px + env(safe-area-inset-top,0px));bottom:calc(8px + env(safe-area-inset-bottom,0px));left:auto;right:calc(8px + env(safe-area-inset-right,0px));width:min(360px,48vw);max-height:none;animation:slidein .35s ease}
+  .card-h{padding:12px 16px 10px} .card-h h2{font-size:21px} .card-h .en{display:none}
+  .tab{padding:8px 9px 9px;font-size:15px} .card-b{padding:12px 16px 16px;font-size:16px}
+  .sheet{padding:18px} .sheet h2{font-size:22px} .steps li{font-size:15px}
+}
+#install[hidden]{display:none!important}
+.ios-tip{margin:-6px 0 18px;font-size:14px;color:var(--ink-soft);line-height:1.6}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="scene" aria-label="圖書館各區 3D 島嶼地圖"></div>
+
+<div id="loader"><div>
+  <div class="shelf-ld"><i style="height:30px;background:#2f56c9"></i><i style="height:38px;background:#c0443c;animation-delay:.1s"></i><i style="height:26px;background:#e0a526;animation-delay:.2s"></i><i style="height:34px;background:#3e8e6b;animation-delay:.3s"></i><i style="height:28px;background:#7a4fb5;animation-delay:.4s"></i></div>
+  <b>圖書館島</b><span>正在把書排上書架…</span>
+</div></div>
+
+<header id="brand" class="hud slip">
+  <div class="stamp" aria-hidden="true">楊</div>
+  <div><h1>楊梅高中圖書館島</h1><p>Yangmei SHS Library Isles</p></div>
+</header>
+
+<nav id="tools" class="hud slip" aria-label="檢視工具">
+  <button class="ib" id="bOverview" title="回到全景"><b aria-hidden="true">◎</b><span>全景</span></button>
+  <button class="ib" id="bList" title="分區清單"><b aria-hidden="true">☰</b><span>清單</span></button>
+  <button class="ib" id="install" title="安裝到裝置" hidden><b aria-hidden="true">⤓</b><span>安裝</span></button>
+  <button class="ib" id="bHelp" title="操作說明"><b aria-hidden="true">?</b><span>說明</span></button>
+</nav>
+
+<button id="badges" class="hud slip" title="闖關徽章進度，點選打開清單">
+  <span class="lbl">闖關徽章</span><span class="cnt" id="badgeCnt">0/9</span><span class="dots" id="badgeDots"></span>
+</button>
+
+<div id="timebar" class="hud slip" role="toolbar" aria-label="時間與動畫">
+  <div id="clock">10:00<small>開館中</small></div>
+  <button class="tb" data-time="dawn" aria-pressed="false">清晨<small>06</small></button>
+  <button class="tb" data-time="day" aria-pressed="true">白天<small>12</small></button>
+  <button class="tb" data-time="dusk" aria-pressed="false">黃昏<small>18</small></button>
+  <button class="tb" data-time="night" aria-pressed="false">夜晚<small>21</small></button>
+  <span class="sep"></span>
+  <button class="tb" id="tLabels" aria-pressed="true">名牌<small>TAG</small></button>
+  <button class="tb" id="tCarts" aria-pressed="true">書車<small>CART</small></button>
+  <button class="tb" id="tPause" aria-pressed="false">暫停<small>II</small></button>
+</div>
+
+<aside id="panel" hidden aria-live="polite"></aside>
+
+<div id="help" class="ov" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="helpT">
+    <h2 id="helpT">三步驟逛圖書館島</h2>
+    <p class="sub">十座島就是圖書館的十個區域，包含啟明樓的兩個空間。每座島都有一題闖關任務，集滿十枚徽章就完成圖書館利用教育。</p>
+    <ol class="steps">
+      <li><b>1</b><span>拖曳旋轉、滾輪或雙指縮放，看看整座群島。</span></li>
+      <li><b>2</b><span>點選任一座島或它的名牌，鏡頭會飛過去並打開分區卡片。</span></li>
+      <li><b>3</b><span>在卡片的「闖關」分頁答對題目，就能收下這座島的徽章。</span></li>
+    </ol>
+    <p class="ios-tip" id="iosTip" hidden>iPhone / iPad 使用者：按 Safari 的「分享」→「加入主畫面」，就能像 App 一樣開啟，離線也能逛。</p>
+    <button class="go" id="helpGo">開始探索</button>
+  </div>
+</div>
+
+<div id="list" class="ov" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="listT">
+    <div class="lh"><div><h2 id="listT">分區清單</h2><p class="sub">不想轉 3D 鏡頭？從這裡直接選區域。</p></div><button class="x" id="listX" aria-label="關閉清單">×</button></div>
+    <div class="grid" id="listGrid"></div>
+  </div>
+</div>
+
+<canvas id="fx"></canvas>
+<div id="toast" hidden></div>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+/* =====================================================================
+   分區資料（依楊梅高中圖書館利用說明整理）：要增刪島嶼或修改文字，只要改這個陣列。
+   faq: 常見問答 [問, 答]；quiz.ans 是正確選項在 opts 中的位置（畫面上會隨機排序）。
+   ===================================================================== */
+const OPEN = '08:00–16:00（開放日）';
+const ZONES = [
+ { id:'hub', type:'hub', name:'讀者服務櫃台', en:'Circulation Desk', call:'1F · DESK', color:'#2f56c9', where:'圖書館一樓',
+   intro:'借書、還書、續借都在一樓櫃台完成。上課時間入館，也要先帶學生證到這裡登記。有任何問題，都可以向圖書館人員洽詢。',
+   hours:OPEN,
+   rules:['借書請攜學生證，每人最多可借 4 本，借期 2 週','請於開放日 16:00 前完成借書程序','續借：到期日前 1～2 日到館或上圖書查詢系統辦理，續借期為 2 週','還書：請於到期前到讀者服務櫃台歸還','逾期：暫停借閱權利，每本書累計的逾期天數就是暫停借閱的天數','學生可借家用版影音光碟，不得公播；公播版限教職員工借用'],
+   faq:[['每個學生一次可以借幾本書？每本可以借多久？','每人最多可借 4 本，每本借期 2 週。想延長時間，請在到期日前到圖書館或上圖書館網頁線上續借，續借期最長 2 週。'],
+        ['我借的書逾期了，怎麼辦？','建議盡快歸還，逾期歸還的天數就是暫停借閱權限的天數。'],
+        ['我可以借學校的影音光碟（DVD）回家看嗎？','學生可以借家用版影片，請勿公播使用；公播版影片限教職同仁借用。']],
+   quiz:{q:'每位同學最多可以借幾本書？借期多久？',opts:['4 本，借期 2 週','5 本，借期 2 週','4 本，借期 1 個月','3 本，借期 3 週'],ans:0,explain:'每人最多可借 4 本，借期 2 週；到期前 1～2 日可以續借 2 週。'} },
+
+ { id:'stack', type:'stack', name:'二樓書庫', en:'Book Stacks', call:'2F · STACKS', color:'#c0443c', where:'圖書館二樓',
+   intro:'圖書館的藏書都在二樓書庫，過期雜誌也移到這裡供外借。借書時從一樓進館，到二樓找書、取書，再回一樓櫃台辦理借書。',
+   hours:OPEN,
+   rules:['借書請由一樓進入圖書館','到二樓書庫找書、取書','回到一樓櫃台完成借書程序','過期雜誌放在二樓書庫，可以外借'],
+   faq:[['如果我要找書，怎麼找？','上本校圖書查詢系統：楊梅高中圖書館網頁 → 館藏圖書查詢 → 選擇關鍵字、ISBN 等 → 開始查詢。'],
+        ['如何推薦圖書館購買新書？','進入本校新書推薦系統：楊梅高中圖書館網頁 → 登入個人帳號 → 填寫推薦內容 → 圖書館審核。']],
+   quiz:{q:'想借一本書，正確的流程是？',opts:['一樓進館 → 二樓書庫找書 → 一樓櫃台借書','直接到二樓書庫借書','請同學幫忙帶出館','在一樓期刊區登記就能帶走'],ans:0,explain:'由一樓進館，到二樓書庫找書、取書，再回一樓讀者服務櫃台完成借書。'} },
+
+ { id:'per', type:'per', name:'期刊區', en:'Periodicals', call:'1F · PER', color:'#7a4fb5', where:'圖書館一樓',
+   intro:'一樓陳列當月期刊雜誌和當日報紙，是掌握時事最快的地方。圖書館至少保存最近兩週的報紙，方便查閱。',
+   hours:OPEN,
+   rules:['當月期刊雜誌限館內閱讀，不外借','過期雜誌移到二樓書庫，可以外借','一樓陳列當日報紙，至少保存最近兩週'],
+   faq:[['期刊可以借回家看嗎？','一樓的當月期刊只限館內閱讀。過期的雜誌移到二樓書庫後才可以外借。']],
+   quiz:{q:'一樓的「當月」期刊雜誌可以借回家嗎？',opts:['不行，限館內閱讀；過期雜誌才可外借','可以，借期 2 週','可以，但只能借 1 天','只有老師可以借'],ans:0,explain:'當月期刊放在一樓、不外借；過期後移到二樓書庫，就可以外借了。'} },
+
+ { id:'pc', type:'pc', name:'資訊檢索區', en:'Computers & Printing', call:'1F · PC', color:'#1f8aa0', where:'圖書館一樓',
+   intro:'查資料、使用線上資源和電子書，以及影印、列印、掃描都在這一區。影印、列印與掃描請自備悠遊卡。',
+   hours:OPEN,
+   rules:['檢索電腦不可連線任何不當網頁，違者查證記錄後依校規警告以上處分','線上資源、電子書請從學校首頁進入（部分限校內使用）','影印、列印：自備悠遊卡（餘額 10 元以上），黑白每頁 2 元、彩色每頁 6 元','掃描：自備悠遊卡，只需過卡，不收費'],
+   faq:[['我想影印、列印資料，圖書館可以借我影印卡嗎？','請自備悠遊卡。黑白每頁 2 元，彩色每頁 6 元。'],
+        ['圖書館可以掃描資料嗎？','可以，圖書館的事務機可以掃描，使用悠遊卡過卡即可，不收費。']],
+   quiz:{q:'在圖書館影印黑白資料，該怎麼付費？',opts:['自備悠遊卡，黑白每頁 2 元','向櫃台借影印卡，每頁 1 元','黑白每頁 6 元','免費'],ans:0,explain:'影印、列印都要自備悠遊卡（餘額 10 元以上），黑白每頁 2 元、彩色每頁 6 元；掃描則免費。'} },
+
+ { id:'special', type:'special', name:'梅高特藏區', en:'School Archive', call:'1F · ARCHIVE', color:'#8a6a2f', where:'圖書館一樓',
+   intro:'收藏梅高自己的歷史：《梅岡風》、最近幾屆的畢業紀念冊、《梅高青年》等刊物。來這裡翻翻學長姐留下的紀錄。',
+   hours:OPEN,
+   rules:['陳列《梅岡風》、最近幾屆畢業紀念冊、《梅高青年》等刊物','特藏刊物不開放外借，請在館內閱讀'],
+   faq:[],
+   quiz:{q:'梅高特藏區的畢業紀念冊可以借回家嗎？',opts:['不行，特藏刊物不開放外借','可以，借期 2 週','可以，但只能借 1 本','畢業生才可以借'],ans:0,explain:'特藏區的《梅岡風》、畢業紀念冊、《梅高青年》都只能在館內閱讀。'} },
+
+ { id:'grp', type:'grp', name:'討論室', en:'Discussion Room', call:'1F · GROUP', color:'#b8527a', where:'圖書館一樓',
+   intro:'一樓的討論室，提供以閱讀和學習為主的小組討論。使用方式請洽一樓讀者服務櫃台。',
+   hours:OPEN,
+   rules:['圖書館所有空間都不外借製作海報、畢業紀念冊等非閱讀活動','班級借用需經導師同意，由班長或圖書股長提前到館預約','同一時段以一個班級使用為原則，教師借用優先於班級借用'],
+   faq:[['如何申請借用圖書館？','個人：上課時間入館須帶學生證登記，並經導師或任課老師簽署洽公證明。班級：經導師同意，由班長或圖書股長提前到圖書館預約時間，同一時段以一個班級為原則（教師借用優先）。']],
+   quiz:{q:'班上想借圖書館空間做海報或畢業紀念冊，可以嗎？',opts:['不行，館內空間不外借給非閱讀活動','可以，先預約就好','可以，放學後就行','只有畢業班可以'],ans:0,explain:'圖書館所有區域都不外借製作海報、畢業紀念冊等非閱讀活動。'} },
+
+ { id:'read', type:'study', name:'閱讀區', en:'Reading Area', call:'1F · 2F', color:'#3e8e6b', where:'圖書館一樓、二樓',
+   intro:'一樓和二樓都設有閱讀區。第 8 堂是館務處理時間，沒有上輔導課的同學可以入館自習。一樓會播放公播音樂，中午播放 25 分鐘新聞。',
+   hours:'08:00–16:00；第 8 堂未上輔導課者可入館自習',
+   rules:['不可攜帶飲食（含礦泉水）、書包等私人物品入館','館內不得使用手機（教師授課所需除外）','不可大聲喧嘩、製造髒亂或奔跑，不可把椅子當玩具、破壞公物','打掃時間不得入館（例外需經導師同意）'],
+   faq:[['我可以帶自己的書進圖書館閱讀嗎？','可以，但不得帶書包，也不能帶任何食物、飲料入館。'],
+        ['午休時間不想睡午覺，可以到圖書館嗎？','若無特殊原因，請回教室休息。有特殊事件急需處理，須經導師同意並備有同意文件才能留館。圖書館不發給到館或消除缺曠紀錄的證明。']],
+   quiz:{q:'可以帶一瓶礦泉水進圖書館嗎？',opts:['不行，飲食（含礦泉水）和書包都不能帶入','可以，礦泉水沒關係','可以，只要放在書包裡','放學後就可以'],ans:0,explain:'入館不可攜帶飲食，礦泉水也包含在內；書包等私人物品也不能帶進館內。'} },
+
+ { id:'comic', type:'comic', name:'漫畫區', en:'Comics', call:'2F · COMIC', color:'#e2793a', where:'圖書館二樓',
+   intro:'二樓的漫畫書籍，課餘來這裡放鬆一下。漫畫只供在館閱讀，看完請放回原位。',
+   hours:OPEN,
+   rules:['漫畫書籍僅供在館閱讀，不開放外借','看完請放回原處，保持書架整齊'],
+   faq:[['漫畫區的漫畫可以借回家看嗎？','一樓當月期刊和二樓漫畫都只限館內閱讀。']],
+   quiz:{q:'二樓的漫畫可以借回家看嗎？',opts:['不行，只限館內閱讀','可以，借期 2 週','可以，一次 1 本','週末才可以借'],ans:0,explain:'漫畫和一樓當月期刊一樣，都只能在館內閱讀。'} },
+
+ { id:'joy', type:'joy', name:'喜閱學堂', en:'Joy Reading Hall', call:'QIMING 1F', color:'#d39a12', where:'啟明樓一樓',
+   intro:'位在啟明樓一樓，是圖書館在館舍以外的閱讀推廣空間。活動與使用方式請洽圖書館人員。',
+   hours:'依活動安排，請洽圖書館',
+   rules:['位於啟明樓一樓','使用方式與活動資訊請洽圖書館人員'],
+   faq:[],
+   quiz:{q:'「喜閱學堂」在哪裡？',opts:['啟明樓一樓','圖書館二樓','啟明樓四樓','圖書館一樓'],ans:0,explain:'喜閱學堂在啟明樓一樓，紅土藝術空間則在啟明樓四樓。'} },
+
+ { id:'art', type:'art', name:'紅土藝術空間', en:'Red Clay Art Space', call:'QIMING 4F', color:'#b5502e', where:'啟明樓四樓',
+   intro:'位在啟明樓四樓的藝術展演空間。展覽與使用方式請洽圖書館人員。',
+   hours:'依展覽安排，請洽圖書館',
+   rules:['位於啟明樓四樓','展覽與使用方式請洽圖書館人員'],
+   faq:[],
+   quiz:{q:'「紅土藝術空間」在哪裡？',opts:['啟明樓四樓','啟明樓一樓','圖書館二樓','圖書館一樓'],ans:0,explain:'紅土藝術空間在啟明樓四樓，喜閱學堂在啟明樓一樓。'} },
+];
+
+const TIMES = {
+  dawn: {clock:'06:00',note:'晨讀時間',sky:'#f1c7a8',fog:'#f1c7a8',hs:'#ffd9b8',hg:'#4d6a66',hi:.75,sc:'#ffb07a',si:1.5,sp:[60,22,30],water:'#5a87a0',glow:.7,stars:0,ex:1.0},
+  day:  {clock:'10:00',note:'開館中',sky:'#a9d6f0',fog:'#b7dcf0',hs:'#e8f4ff',hg:'#5b7a5a',hi:.95,sc:'#fff4e2',si:2.4,sp:[30,60,40],water:'#3c87ab',glow:0,stars:0,ex:1.05},
+  dusk: {clock:'18:00',note:'即將閉館',sky:'#dd8a6c',fog:'#cf8670',hs:'#ffc39b',hg:'#46505e',hi:.6,sc:'#ff8848',si:1.4,sp:[-60,16,10],water:'#3b5d78',glow:1,stars:.15,ex:1.0},
+  night:{clock:'21:00',note:'已閉館',sky:'#0e1828',fog:'#0e1828',hs:'#3a4d7a',hg:'#101820',hi:.4,sc:'#9fb6ff',si:.55,sp:[-30,50,-30],water:'#12253a',glow:2.4,stars:1,ex:1.1},
+};
+
+/* ---------- helpers ---------- */
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const store = {
+  get(k,d){ try{ const v = localStorage.getItem(k); return v==null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- renderer / scene ---------- */
+const host = $('#scene');
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+const isSmall = Math.min(screen.width, screen.height) < 760;
+renderer.setPixelRatio(Math.min(devicePixelRatio, isSmall ? 1.5 : 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+host.appendChild(renderer.domElement);
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.domElement.className = 'labels';
+host.appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(TIMES.day.sky);
+scene.fog = new THREE.Fog(TIMES.day.fog, 80, 190);
+const camera = new THREE.PerspectiveCamera(40, 1, .5, 500);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = .08;
+controls.maxPolarAngle = Math.PI * .45; controls.minDistance = 10; controls.maxDistance = 150;
+controls.enablePan = false;
+
+const hemi = new THREE.HemisphereLight(TIMES.day.hs, TIMES.day.hg, TIMES.day.hi);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(TIMES.day.sc, TIMES.day.si);
+sun.position.set(...TIMES.day.sp);
+sun.castShadow = true;
+sun.shadow.mapSize.set(isSmall ? 1024 : 2048, isSmall ? 1024 : 2048);
+Object.assign(sun.shadow.camera, { left:-50, right:50, top:50, bottom:-50, near:1, far:200 });
+sun.shadow.bias = -0.0006;
+scene.add(sun);
+
+const matCache = new Map();
+function mat(color, o = {}){
+  const key = color + JSON.stringify(o);
+  if (!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness:.85, flatShading:!!o.flat, ...o.extra }));
+  return matCache.get(key);
+}
+const glowMats = [];
+function glowMat(color, base = 1, always = false){
+  const m = new THREE.MeshStandardMaterial({ color:'#fff6dc', emissive:color, emissiveIntensity:0, roughness:.4 });
+  m.userData.base = base; m.userData.always = always; glowMats.push(m); return m;
+}
+function put(mesh, parent, x=0, y=0, z=0){ mesh.position.set(x,y,z); mesh.castShadow = mesh.receiveShadow = true; parent.add(mesh); return mesh; }
+const box  = (p,w,h,d,c,x=0,y=0,z=0,m) => put(new THREE.Mesh(new THREE.BoxGeometry(w,h,d), m || mat(c)), p, x, y+h/2, z);
+const rbox = (p,w,h,d,c,x=0,y=0,z=0) => put(new THREE.Mesh(new RoundedBoxGeometry(w,h,d,2,Math.min(w,h,d)*.18), mat(c)), p, x, y+h/2, z);
+const cyl  = (p,rt,rb,h,c,x=0,y=0,z=0,seg=14,m) => put(new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg), m || mat(c)), p, x, y+h/2, z);
+const cone = (p,r,h,c,x=0,y=0,z=0,seg=7) => put(new THREE.Mesh(new THREE.ConeGeometry(r,h,seg), mat(c,{flat:true})), p, x, y+h/2, z);
+
+const WOOD = '#9a6a45', WOOD_D = '#6f4a30', CREAM = '#efe9dc', LEAF = '#5f9a5c', LEAF2 = '#78b06a';
+const BOOK = ['#2f56c9','#c0443c','#e0a526','#3e8e6b','#7a4fb5','#e2793a','#1f8aa0','#d9d2c3','#2b3a55','#b8527a'];
+const SDG = ['#E5243B','#DDA63A','#4C9F38','#C5192D','#FF3A21','#26BDE2','#FCC30B','#A21942','#FD6925','#DD1367','#FD9D24','#BF8B2E','#3F7E44','#0A97D9','#56C02B','#00689D','#19486A'];
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+function tree(p, x, z, s = 1){
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); p.add(g);
+  cyl(g,.16,.22,.9,WOOD_D,0,0,0,6);
+  cone(g,.95,1.5,LEAF,0,.7,0); cone(g,.7,1.2,LEAF2,0,1.55,0);
+}
+function lamp(p, x, z, h = 2.2){
+  cyl(p,.06,.08,h,'#3b4146',x,0,z,6);
+  const b = new THREE.Mesh(new THREE.SphereGeometry(.22,12,8), glowMat('#ffc861', 1.4));
+  b.position.set(x, h+.1, z); p.add(b);
+}
+function signTex(text, bg, fg = '#fff'){
+  const c = document.createElement('canvas'); c.width = 512; c.height = 160;
+  const x = c.getContext('2d');
+  x.fillStyle = bg; x.fillRect(0,0,512,160);
+  x.fillStyle = fg; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.font = '900 78px "Noto Serif TC","Songti TC",serif';
+  x.fillText(text, 256, 84);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function sign(p, text, bg, x, y, z, w = 2.6, ry = 0){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, w*.3125, .08), [mat('#333'),mat('#333'),mat('#333'),mat('#333'),
+    new THREE.MeshStandardMaterial({ map:signTex(text,bg), roughness:.6 }), mat('#333')]);
+  m.position.set(x,y,z); m.rotation.y = ry; m.castShadow = true; p.add(m); return m;
+}
+/* bookshelf with instanced books — one draw call per shelf */
+const bookGeo = new THREE.BoxGeometry(1,1,1);
+function shelf(p, x, z, ry = 0, w = 3, levels = 3, palette = BOOK){
+  const g = new THREE.Group(); g.position.set(x,0,z); g.rotation.y = ry; p.add(g);
+  const h = levels * .8 + .2, d = .6;
+  box(g,.12,h,d,WOOD_D,-w/2,0,0); box(g,.12,h,d,WOOD_D,w/2,0,0); box(g,w,h,.06,WOOD,0,0,-d/2+.03);
+  for (let i = 0; i <= levels; i++) box(g,w,.08,d,WOOD_D,0,i*.8,0);
+  const per = Math.floor((w - .2) / .17), n = per * levels;
+  const im = new THREE.InstancedMesh(bookGeo, new THREE.MeshStandardMaterial({ roughness:.75 }), n);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), v = new THREE.Vector3(), col = new THREE.Color();
+  let k = 0;
+  for (let L = 0; L < levels; L++){
+    let cx = -w/2 + .14;
+    for (let i = 0; i < per; i++){
+      const bw = .1 + rnd()*.06, bh = .5 + rnd()*.22, tilt = (i === per-1 && rnd() > .5) ? .25 : 0;
+      q.setFromEuler(new THREE.Euler(0,0,-tilt));
+      v.set(cx + bw/2, L*.8 + .08 + bh/2, .02); s.set(bw, bh, .44);
+      m4.compose(v, q, s); im.setMatrixAt(k, m4); im.setColorAt(k, col.set(palette[Math.floor(rnd()*palette.length)])); k++;
+      cx += bw + .012; if (cx > w/2 - .2) break;
+    }
+  }
+  im.count = k; im.castShadow = true; im.receiveShadow = true; g.add(im);
+  return g;
+}
+function chair(p, x, z, ry, c = '#55606a'){
+  const g = new THREE.Group(); g.position.set(x,0,z); g.rotation.y = ry; p.add(g);
+  box(g,.5,.08,.5,c,0,.45,0); box(g,.5,.5,.07,c,0,.5,-.22);
+  for (const [a,b] of [[-.2,-.2],[.2,-.2],[-.2,.2],[.2,.2]]) box(g,.05,.45,.05,'#3b4146',a,0,b);
+}
+
+/* ---------- island base ---------- */
+function base(p, r, plaza){
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(r, r*1.04, .7, 10), mat('#9dc38a',{flat:true}));
+  top.position.y = -.35; top.receiveShadow = true; p.add(top);
+  const cliff = new THREE.Mesh(new THREE.CylinderGeometry(r*1.04, r*.42, 3.6, 10), mat('#b8a487',{flat:true}));
+  cliff.position.y = -2.5; cliff.castShadow = true; p.add(cliff);
+  const pl = new THREE.Mesh(new THREE.CircleGeometry(r*.68, 28), mat(plaza));
+  pl.rotation.x = -Math.PI/2; pl.position.y = .01; pl.receiveShadow = true; p.add(pl);
+  for (let i = 0; i < 6; i++){
+    const a = rnd()*Math.PI*2, rr = r*(1+rnd()*.1);
+    const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(.35+rnd()*.4,0), mat('#8f8676',{flat:true}));
+    rock.position.set(Math.cos(a)*rr, -1.2+rnd()*.4, Math.sin(a)*rr); rock.castShadow = true; p.add(rock);
+  }
+}
+const tint = (hex, amt) => '#' + new THREE.Color(hex).lerp(new THREE.Color('#f6f3ea'), amt).getHexString();
+
+/* ---------- zone models ---------- */
+const BUILD = {
+  hub(g, z){
+    rbox(g,7.4,3.4,4.8,CREAM,0,0,-1.2);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(5.6,2.2,4), mat(z.color,{flat:true}));
+    roof.rotation.y = Math.PI/4; roof.scale.z = .72; roof.position.set(0,4.5,-1.2); roof.castShadow = true; g.add(roof);
+    box(g,1.4,2.2,.1,WOOD_D,0,0,1.25);
+    for (const x of [-2.6,-1.5,1.5,2.6]) box(g,.8,1,.08,'',x,1.5,1.24, glowMat('#ffd27a',1.2));
+    sign(g,'圖書館',z.color,0,2.85,1.32,3.2);
+    rbox(g,3.6,1,1,WOOD,0,0,3); box(g,3.8,.08,1.2,WOOD_D,0,1,3);
+    box(g,.9,1.1,.7,z.color,4,0,2.6); box(g,.5,.08,.06,'#222',4,.85,2.96);
+    for (const [x,zz] of [[-4.6,3.4],[4.8,-3.2],[-4.8,-3.4],[-5.6,.4],[5.6,.6]]) tree(g,x,zz,.9+rnd()*.3);
+    lamp(g,-2.6,4.4); lamp(g,2.6,4.4);
+  },
+  new(g, z){
+    cyl(g,2.4,2.6,.4,'#ddd5c4',0,0,0,20); cyl(g,1.6,1.8,.5,'#e9e2d2',0,.4,0,20); cyl(g,.9,1,.5,CREAM,0,.9,0,20);
+    const lv = [[2.1,.4,10],[1.35,.9,7],[.5,1.4,3]];
+    for (const [r,y,n] of lv) for (let i = 0; i < n; i++){
+      const a = i/n*Math.PI*2, b = box(g,.7,1,.12,BOOK[(i+n)%BOOK.length],Math.cos(a)*r,y,Math.sin(a)*r);
+      b.rotation.y = -a + Math.PI/2; b.rotation.x = -.18;
+    }
+    sign(g,'新書',z.color,0,3.6,-.0,2.2);
+    cyl(g,.06,.06,1.2,'#3b4146',0,2.4,0,6);
+    for (const [x,zz] of [[-3.4,2.4],[3.6,-2],[2.8,3.2]]) tree(g,x,zz,.9);
+    lamp(g,-3,-2.6);
+  },
+  zh(g, z){
+    for (let r = 0; r < 3; r++) shelf(g,-1.6,-2.4+r*2.1,0,5,4);
+    for (let r = 0; r < 3; r++) sign(g,['000','400','800'][r],z.color,2.9,3.6,-2.4+r*2.1,1.1,Math.PI/2);
+    for (let r = 0; r < 3; r++) cyl(g,.05,.05,3.4,'#3b4146',2.9,0,-2.4+r*2.1,6);
+    box(g,1,.9,.6,'#6a7378',3.4,0,3.3); for (let i=0;i<4;i++) box(g,.14,.5,.4,BOOK[i+2],3.05+i*.2,.9,3.3);
+    tree(g,-3.9,3.2,.9); lamp(g,3.8,-3.4);
+  },
+  en(g, z){
+    shelf(g,-1.2,-2.6,0,4.6,3, ['#3e8e6b','#2f56c9','#e0a526','#d9d2c3','#c0443c']);
+    shelf(g,-3.2,.6,Math.PI/2,3.6,3, ['#3e8e6b','#7a4fb5','#e2793a','#1f8aa0']);
+    cyl(g,.35,.5,.3,WOOD_D,2.2,0,.8,12); cyl(g,.06,.06,1.2,'#8a8f93',2.2,.3,.8,6);
+    const globe = new THREE.Mesh(new THREE.IcosahedronGeometry(1,2), mat('#3c8fd0',{flat:true}));
+    globe.position.set(2.2,2.4,.8); globe.castShadow = true; globe.userData.spin = true; g.add(globe);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15,.05,6,40), mat('#b49a52'));
+    ring.position.copy(globe.position); ring.rotation.x = .4; g.add(ring);
+    for (let i = 0; i < 6; i++){ const a=i/6*Math.PI*2; const c=new THREE.Mesh(new THREE.IcosahedronGeometry(.28,0),mat('#5bae5b',{flat:true})); c.position.set(Math.cos(a)*.8,0,Math.sin(a)*.8); c.scale.y=.5; globe.add(c); }
+    sign(g,'ABC',z.color,2.2,4.1,.8,1.6);
+    tree(g,3.6,-2.6,.9); tree(g,2.8,3.6,.8); lamp(g,-3.6,3.4);
+  },
+  per(g, z){
+    const rack = new THREE.Group(); rack.position.set(-1,0,-2.2); g.add(rack);
+    box(rack,4,2.4,.15,WOOD,0,0,-.3);
+    for (let r = 0; r < 3; r++) for (let i = 0; i < 6; i++){
+      const m = box(rack,.55,.72,.04,BOOK[(i+r*3)%BOOK.length],-1.6+i*.64,.15+r*.76,-.1); m.rotation.x = -.25;
+    }
+    for (let i = 0; i < 4; i++){
+      cyl(g,.04,.04,1.8,'#6f7478',2.2+i*.55,0,-1.2,6);
+      const paper = box(g,.08,1,.6,'#f2efe6',2.2+i*.55,.6,-.9); paper.rotation.y = .1;
+    }
+    rbox(g,2.2,.25,1.2,'#cfc7b6',0,0,1.6); box(g,1.8,.4,.9,WOOD_D,0,-.15,1.6);
+    for (const [x,zz,ry] of [[-1.9,1.6,Math.PI/2],[1.9,1.6,-Math.PI/2]]){ rbox(g,1.1,.6,1.1,z.color,x,0,zz); rbox(g,1.1,.8,.3,z.color,x+(x<0?-.4:.4),.4,zz).rotation.y = Math.PI/2; }
+    for (let i=0;i<3;i++) box(g,.6,.02,.8,'#fff',-.4+i*.4,.27,1.6).rotation.y = i*.3;
+    tree(g,3.8,2.6,.9); lamp(g,-3.6,2.8);
+  },
+  study(g, z){
+    for (const zz of [-1.6,1.6]){
+      rbox(g,5,.15,1.3,WOOD,0,.85,zz);
+      for (const x of [-2.2,2.2]) box(g,.12,.85,1.1,WOOD_D,x,0,zz);
+      for (const x of [-1.6,0,1.6]){ chair(g,x,zz-1.05,0); chair(g,x,zz+1.05,Math.PI);
+        cyl(g,.03,.03,.45,'#3b4146',x+.35,1,zz,6);
+        const sh = new THREE.Mesh(new THREE.ConeGeometry(.2,.22,10,1,true), glowMat('#ffd27a',1.6)); sh.position.set(x+.35,1.5,zz); g.add(sh);
+        box(g,.4,.06,.3,BOOK[(x+3)|0],x-.3,1,zz);
+      }
+    }
+    sign(g,'請安靜',z.color,0,3.4,-3.6,2.4); cyl(g,.06,.06,2.8,'#3b4146',0,0,-3.6,6);
+    tree(g,-4,3.4,.85); tree(g,4,3.2,.95);
+  },
+  av(g, z){
+    rbox(g,4.6,2.6,.3,'#20262b',0,1,-2.6);
+    box(g,4.2,2.2,.04,'',0,1.2,-2.42, glowMat('#6fc6ff',.9,true));
+    cyl(g,.08,.1,1,'#3b4146',0,0,-2.6,6);
+    for (const x of [-2.9,2.9]){ box(g,.8,1.6,.7,'#2c3236',x,0,-2.3); cyl(g,.25,.25,.06,'#888',x,1,-1.94,12).rotation.x = Math.PI/2; cyl(g,.18,.18,.06,'#888',x,.45,-1.94,12).rotation.x = Math.PI/2; }
+    rbox(g,3.4,.6,1.2,z.color,0,0,1.2); rbox(g,3.4,.9,.35,z.color,0,.3,1.75);
+    for (const x of [-1.85,1.85]) rbox(g,.35,.75,1.2,z.color,x,0,1.2);
+    const hp = new THREE.Mesh(new THREE.TorusGeometry(.22,.05,6,16,Math.PI), mat('#1d2226')); hp.position.set(.6,.85,1.1); g.add(hp);
+    tree(g,3.8,2.8,.9); tree(g,-3.8,2.6,.8);
+  },
+  grp(g, z){
+    const glass = new THREE.MeshStandardMaterial({ color:'#cfe8f2', transparent:true, opacity:.28, roughness:.1, depthWrite:false });
+    const room = new THREE.Mesh(new THREE.BoxGeometry(6,2.8,5), glass); room.position.set(0,1.4,-.4); g.add(room);
+    for (const [x,zz] of [[-3,-2.9],[3,-2.9],[-3,2.1],[3,2.1]]) box(g,.14,2.9,.14,'#4a5258',x,0,zz);
+    box(g,6.2,.14,5.2,'#4a5258',0,2.8,-.4);
+    cyl(g,1.3,1.3,.12,WOOD,0,.8,-.4,24); cyl(g,.12,.2,.8,WOOD_D,0,0,-.4,8);
+    for (let i = 0; i < 6; i++){ const a = i/6*Math.PI*2; chair(g,Math.cos(a)*1.9,-.4+Math.sin(a)*1.9,-a-Math.PI/2,z.color); }
+    box(g,2.6,1.4,.06,'#fbfbf7',0,1,-2.75);
+    for (let i=0;i<4;i++) box(g,.4,.3,.02,['#ffd84d','#9fe3b0','#ffb0c4','#a8d4ff'][i],-.9+i*.6,1.7-(i%2)*.4,-2.7);
+    tree(g,-4,3.4,.9); lamp(g,4,3.2);
+  },
+  theme(g, z){
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(2.2,.28,8,28,Math.PI), mat(z.color,{flat:true}));
+    arch.position.set(0,0,2.6); arch.castShadow = true; g.add(arch);
+    for (let i = 0; i < 17; i++){
+      const a = i/17*Math.PI*2, h = 1 + (i%3)*.45;
+      cyl(g,.22,.22,h,SDG[i],Math.cos(a)*3.6,0,Math.sin(a)*3.6-.4,8);
+    }
+    rbox(g,2.6,.9,1.4,CREAM,0,0,-.6);
+    for (let i = 0; i < 5; i++){ const b = box(g,.42,.62,.1,SDG[i*3],-.9+i*.45,.9,-.6); b.rotation.x = -.25; }
+    sign(g,'SDGs',z.color,0,2.4,-1.2,2.4); cyl(g,.06,.06,1.6,'#3b4146',0,.9,-1.25,6);
+  },
+stack(g, z){
+    for (let r = 0; r < 3; r++) shelf(g,-1.4,-2.6+r*2.1,0,5.2,4);
+    sign(g,'書庫',z.color,3.1,3.4,-.4,1.8,Math.PI/2); cyl(g,.06,.06,3,'#3b4146',3.1,0,-.4,6);
+    box(g,1,.9,.6,'#6a7378',3.4,0,3.2); for (let i=0;i<4;i++) box(g,.14,.5,.4,BOOK[i+2],3.05+i*.2,.9,3.2);
+    tree(g,-3.9,3.4,.9); lamp(g,3.8,-3.4);
+  },
+  pc(g, z){
+    for (const zz of [-2.2,.2]){
+      rbox(g,4.8,.12,1,'#d9d4c8',0,.85,zz);
+      for (const x of [-2.2,2.2]) box(g,.1,.85,.9,'#6a7378',x,0,zz);
+      for (const x of [-1.5,0,1.5]){
+        box(g,.9,.6,.06,'#20262b',x,1.1,zz-.25); box(g,.8,.5,.02,'',x,1.15,zz-.21, glowMat('#7fd3ff',.8,true));
+        box(g,.1,.15,.1,'#20262b',x,.97,zz-.28); box(g,.55,.03,.2,'#2c3236',x,.97,zz+.1); chair(g,x,zz+.9,Math.PI);
+      }
+    }
+    rbox(g,1.3,1.1,1,'#e8e6df',2.6,0,2.6); box(g,1.2,.08,.9,'#3b4146',2.6,1.1,2.6); box(g,.5,.06,.04,'',2.6,.8,3.11, glowMat('#7fffa4',.6,true));
+    sign(g,'檢索',z.color,-2.8,3,2.8,1.6); cyl(g,.06,.06,2.5,'#3b4146',-2.8,0,2.8,6);
+    tree(g,3.9,-1.2,.85);
+  },
+  special(g, z){
+    const glass = new THREE.MeshStandardMaterial({ color:'#d6eef6', transparent:true, opacity:.3, roughness:.05, depthWrite:false });
+    for (const [x,zz,ry] of [[-2.6,-1,0.5],[0,-2.2,0],[2.6,-1,-.5]]){
+      const c = new THREE.Group(); c.position.set(x,0,zz); c.rotation.y = ry; g.add(c);
+      box(c,1.8,.9,1,WOOD_D,0,0,0);
+      const gl = new THREE.Mesh(new THREE.BoxGeometry(1.8,.9,1), glass); gl.position.y = 1.35; c.add(gl);
+      for (let i = 0; i < 3; i++){ const bk = box(c,.42,.58,.14,['#7b1f2a','#1f3b6b','#2f5a3a'][i],-.55+i*.55,.9,0); bk.rotation.x = -.2; }
+    }
+    rbox(g,1.6,1.8,.3,'#efe6cf',0,0,1.6);
+    sign(g,'梅高',z.color,0,2.1,1.6,1.8);
+    tree(g,-3.6,2.6,.9); tree(g,3.6,2.6,.9); lamp(g,0,-4);
+  },
+  comic(g, z){
+    const pop = ['#e2793a','#ffcf33','#2f9be0','#e8475f','#57c46a','#ffffff'];
+    shelf(g,-1,-2.6,0,4.2,2,pop); shelf(g,-3.2,0,Math.PI/2,3,2,pop);
+    for (const [x,zz,c] of [[1.2,.6,'#ffcf33'],[2.6,1.8,'#2f9be0'],[.6,2.4,'#e8475f']]){
+      const bb = new THREE.Mesh(new THREE.SphereGeometry(.75,16,10), mat(c,{flat:true})); bb.scale.y = .55; bb.position.set(x,.35,zz); bb.castShadow = true; g.add(bb);
+    }
+    const bub = new THREE.Mesh(new THREE.SphereGeometry(1,18,12), mat('#fbfbf7')); bub.scale.set(1.5,.95,.3); bub.position.set(2.4,3.1,-1.4); g.add(bub);
+    sign(g,'漫畫','#e2793a',2.4,3.1,-1.05,1.7);
+    cone(g,.35,.6,'#fbfbf7',1.7,2,-1.4,3);
+    tree(g,3.8,-3,.8);
+  },
+  joy(g, z){
+    rbox(g,6,.35,3.4,WOOD,0,0,-1.6);
+    box(g,6,2.6,.15,'#efe6cf',0,0,-3.3); box(g,.15,2.6,3.4,'#efe6cf',-3,0,-1.6); box(g,.15,2.6,3.4,'#efe6cf',3,0,-1.6);
+    shelf(g,-1.4,-3.0,0,2.4,2); shelf(g,1.4,-3.0,0,2.4,2);
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 4; i++) cyl(g,.36,.4,.18,BOOK[(i+r*2)%BOOK.length],-1.8+i*1.2,0,1+r*1.3,12);
+    sign(g,'喜閱學堂',z.color,0,2.9,-3.2,3.4);
+    tree(g,-3.9,2.8,.9); tree(g,3.9,2.8,.9);
+  },
+  art(g, z){
+    const easel = (x,zz,ry,c) => { const e = new THREE.Group(); e.position.set(x,0,zz); e.rotation.y = ry; g.add(e);
+      for (const sx of [-.4,.4]){ const leg = box(e,.08,2,.08,WOOD_D,sx,0,0); leg.rotation.z = sx*.15; }
+      const back = box(e,.08,1.9,.08,WOOD_D,0,0,-.5); back.rotation.x = .3;
+      box(e,1.1,.85,.05,c,0,1,.06); };
+    easel(-2.4,-1.2,.5,'#e8b64c'); easel(0,-2.4,0,'#4f8fd1'); easel(2.4,-1.2,-.5,'#d65a4a');
+    cyl(g,.7,.8,.8,'#efe6cf',0,0,1.4,8);
+    const sc = new THREE.Mesh(new THREE.TorusKnotGeometry(.5,.16,60,8), mat(z.color)); sc.position.set(0,1.6,1.4); sc.castShadow = true; sc.userData.spin = true; g.add(sc);
+    sign(g,'紅土',z.color,-3,3,2.4,1.6); cyl(g,.06,.06,2.5,'#3b4146',-3,0,2.4,6);
+    tree(g,3.6,2.8,.9); lamp(g,3.6,-3);
+  },
+};
+
+/* ---------- build world ---------- */
+const islands = [];        // { z, group, bobPhase, label }
+const pickables = [];
+const RING = 28;
+const angle0 = -Math.PI/2;
+const others = ZONES.filter(z => z.id !== 'hub');
+
+const water = new THREE.Mesh(new THREE.CircleGeometry(220, 64), new THREE.MeshStandardMaterial({ color:TIMES.day.water, roughness:.3, metalness:.15 }));
+water.rotation.x = -Math.PI/2; water.position.y = -1.4; water.receiveShadow = true; scene.add(water);
+
+const ripples = [];
+function addRipple(x, z, r){
+  for (let i = 0; i < 2; i++){
+    const m = new THREE.Mesh(new THREE.RingGeometry(r, r+.25, 48), new THREE.MeshBasicMaterial({ color:'#ffffff', transparent:true, opacity:.3, depthWrite:false }));
+    m.rotation.x = -Math.PI/2; m.position.set(x,-1.36,z); scene.add(m); ripples.push({ m, r, ph:i*.5 });
+  }
+}
+
+function makeIsland(z, i){
+  const g = new THREE.Group();
+  let x = 0, zz = 0, r = 7.2;
+  if (z.id !== 'hub'){ const a = angle0 + i/others.length*Math.PI*2; x = Math.cos(a)*RING; zz = Math.sin(a)*RING; r = 5; }
+  g.position.set(x, 0, zz);
+  if (z.id !== 'hub') g.rotation.y = -Math.atan2(zz, x) - Math.PI/2;   // face the hub
+  else g.rotation.y = 0;
+  base(g, r, tint(z.color, .72));
+  BUILD[z.type](g, z);
+  g.traverse(o => { if (o.isMesh) o.userData.zone = z.id; });
+  scene.add(g); pickables.push(g);
+  addRipple(x, zz, r*1.05);
+
+  const el = document.createElement('button');
+  el.className = 'tag'; el.type = 'button';
+  el.setAttribute('aria-label', `${z.name}，打開分區卡片`);
+  el.innerHTML = `<span class="sw" style="background:${z.color}"></span><span class="tx"><b>${esc(z.name)}</b><small>${esc(z.call)}<span class="got" hidden>★</span></small></span>`;
+  el.addEventListener('click', ev => { ev.stopPropagation(); openZone(z.id); });
+  const lab = new CSS2DObject(el); lab.position.set(0, z.id === 'hub' ? 7.6 : 5.6, 0); g.add(lab);
+  islands.push({ z, group:g, r, bobPhase:i*.8, el });
+}
+
+/* paths: arched book-cart routes from the hub to every island */
+const carts = [];
+const cartGroup = new THREE.Group(); scene.add(cartGroup);
+function makePaths(){
+  const hub = islands[0];
+  for (const it of islands.slice(1)){
+    const p = it.group.position, dir = p.clone().normalize();
+    const a = dir.clone().multiplyScalar(hub.r + .2).setY(.3);
+    const b = p.clone().sub(dir.clone().multiplyScalar(it.r + .2)).setY(.3);
+    const mid = a.clone().add(b).multiplyScalar(.5).setY(3.2);
+    const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, .09, 6), new THREE.MeshStandardMaterial({ color:it.z.color, emissive:it.z.color, emissiveIntensity:.25, transparent:true, opacity:.75 }));
+    scene.add(tube);
+    for (let k = 0; k < 2; k++){
+      const c = new THREE.Group();
+      box(c,.7,.35,.45,'#4a5258',0,0,0); for (let j=0;j<3;j++) box(c,.15,.4,.36,BOOK[(j+k*3)%BOOK.length],-.2+j*.2,.35,0);
+      c.position.y = .2; c.scale.setScalar(.9); cartGroup.add(c);
+      carts.push({ c, curve, t:k*.5 + rnd()*.2, speed:.07 + rnd()*.03, dir:k ? -1 : 1 });
+    }
+  }
+}
+
+/* sky details */
+const clouds = [];
+function makeClouds(){
+  const cm = new THREE.MeshStandardMaterial({ color:'#ffffff', roughness:1, flatShading:true, transparent:true, opacity:.95 });
+  for (let i = 0; i < 9; i++){
+    const c = new THREE.Group();
+    for (let j = 0; j < 4; j++){ const s = new THREE.Mesh(new THREE.IcosahedronGeometry(1.4+rnd()*1.2,0), cm); s.position.set(j*1.6-2.4, rnd()*.6, rnd()*1.2); c.add(s); }
+    const a = rnd()*Math.PI*2, rr = 40 + rnd()*40;
+    c.position.set(Math.cos(a)*rr, 16+rnd()*8, Math.sin(a)*rr); c.scale.setScalar(.8+rnd()*.7);
+    scene.add(c); clouds.push({ c, sp:.4+rnd()*.5 });
+  }
+  return cm;
+}
+let cloudMat;
+const starGeo = new THREE.BufferGeometry();
+const sp = new Float32Array(900*3);
+for (let i = 0; i < 900; i++){ const th = rnd()*Math.PI*2, ph = rnd()*Math.PI*.45, R = 180; sp[i*3]=Math.cos(th)*Math.sin(ph)*R; sp[i*3+1]=Math.cos(ph)*R*.7+10; sp[i*3+2]=Math.sin(th)*Math.sin(ph)*R; }
+starGeo.setAttribute('position', new THREE.BufferAttribute(sp,3));
+const starMat = new THREE.PointsMaterial({ color:'#ffffff', size:1.1, sizeAttenuation:true, transparent:true, opacity:0, fog:false, depthWrite:false });
+scene.add(new THREE.Points(starGeo, starMat));
+
+/* ---------- environment (day/night) ---------- */
+const env = { sky:new THREE.Color(), fog:new THREE.Color(), hs:new THREE.Color(), hg:new THREE.Color(), sc:new THREE.Color(), water:new THREE.Color(), hi:0, si:0, glow:0, stars:0, ex:1, sp:new THREE.Vector3() };
+let target = TIMES.day, timeKey = 'day';
+function snapEnv(t){
+  env.sky.set(t.sky); env.fog.set(t.fog); env.hs.set(t.hs); env.hg.set(t.hg); env.sc.set(t.sc); env.water.set(t.water);
+  env.hi=t.hi; env.si=t.si; env.glow=t.glow; env.stars=t.stars; env.ex=t.ex; env.sp.set(...t.sp);
+}
+const tmpC = new THREE.Color(), tmpV = new THREE.Vector3();
+function stepEnv(k){
+  const t = target;
+  for (const key of ['sky','fog','hs','hg','sc','water']) env[key].lerp(tmpC.set(t[key]), k);
+  for (const key of ['hi','si','glow','stars','ex']) env[key] += (t[key]-env[key])*k;
+  env.sp.lerp(tmpV.set(...t.sp), k);
+  scene.background.copy(env.sky); scene.fog.color.copy(env.fog);
+  hemi.color.copy(env.hs); hemi.groundColor.copy(env.hg); hemi.intensity = env.hi;
+  sun.color.copy(env.sc); sun.intensity = env.si; sun.position.copy(env.sp);
+  water.material.color.copy(env.water);
+  for (const m of glowMats) m.emissiveIntensity = m.userData.base * (m.userData.always ? Math.max(.7, env.glow) : env.glow);
+  starMat.opacity = env.stars;
+  if (cloudMat) cloudMat.opacity = .95 - env.stars*.75;
+  renderer.toneMappingExposure = env.ex;
+}
+function setTime(key){
+  timeKey = key; target = TIMES[key];
+  document.querySelectorAll('[data-time]').forEach(b => b.setAttribute('aria-pressed', b.dataset.time === key));
+  $('#clock').innerHTML = `${target.clock}<small>${target.note}</small>`;
+  if (reduce) { snapEnv(target); stepEnv(1); }
+}
+
+/* ---------- camera flights ---------- */
+let flight = null;
+function overviewPose(){
+  const a = camera.aspect, f = a < .8 ? 1.75 : a < 1.2 ? 1.3 : 1;
+  return { pos:new THREE.Vector3(0, 46*f, 62*f), tgt:new THREE.Vector3(0,0,2) };
+}
+function flyTo(pos, tgt, dur = 1.5){
+  flight = { p0:camera.position.clone(), t0:controls.target.clone(), p1:pos, t1:tgt, t:0, dur: reduce ? .001 : dur };
+}
+function poseFor(id){
+  const it = islands.find(i => i.z.id === id), p = it.group.position.clone();
+  if (id === 'hub') return { pos:new THREE.Vector3(2, 15, 19), tgt:new THREE.Vector3(0,1.5,0) };
+  const out = p.clone().normalize();
+  const side = new THREE.Vector3(-out.z, 0, out.x).multiplyScalar(4);
+  const narrow = camera.aspect < .8;
+  const pos = p.clone().add(out.multiplyScalar(narrow ? 19 : 13)).add(side).setY(narrow ? 20 : 11);
+  // phones: aim below the island so it sits above the bottom sheet; desktop: shift left so the card does not cover it
+  const tgt = narrow ? p.clone().sub(out.clone().normalize().multiplyScalar(-9)).setY(-8) : p.clone().setY(1.2);
+  if (!narrow){ const right = new THREE.Vector3().subVectors(pos, tgt).cross(new THREE.Vector3(0,1,0)).normalize(); tgt.add(right.multiplyScalar(innerHeight <= 520 ? -7.5 : -3.2)); }
+  return { pos, tgt };
+}
+
+/* ---------- picking ---------- */
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+let downAt = null, hovered = null;
+function pick(e){
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(ptr, camera);
+  const hit = ray.intersectObjects(pickables, true)[0];
+  return hit ? hit.object.userData.zone : null;
+}
+renderer.domElement.addEventListener('pointerdown', e => { downAt = { x:e.clientX, y:e.clientY }; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt) return;
+  const moved = Math.hypot(e.clientX-downAt.x, e.clientY-downAt.y); downAt = null;
+  if (moved > 6) return;
+  const id = pick(e); if (id) openZone(id);
+});
+renderer.domElement.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse' || e.buttons) return;
+  const id = pick(e);
+  if (id !== hovered){
+    islands.forEach(i => i.el.classList.toggle('hot', i.z.id === id));
+    hovered = id; renderer.domElement.style.cursor = id ? 'pointer' : '';
+  }
+});
+
+/* ---------- badges ---------- */
+let badges = new Set(store.get('libisle.badges', []).filter(id => ZONES.some(z => z.id === id)));
+function renderBadges(){
+  $('#badgeCnt').textContent = `${badges.size}/${ZONES.length}`;
+  $('#badgeDots').innerHTML = ZONES.map(z => `<i style="${badges.has(z.id) ? 'background:'+z.color : ''}" title="${esc(z.name)}"></i>`).join('');
+  islands.forEach(i => i.el.querySelector('.got').hidden = !badges.has(i.z.id));
+}
+
+/* ---------- zone card ---------- */
+const panel = $('#panel');
+let current = null, tab = 'intro';
+const TABS = [['intro','介紹'],['rules','開放與規則'],['faq','常見問答'],['quiz','闖關']];
+function openZone(id, keepTab){
+  const z = ZONES.find(z => z.id === id); if (!z) return;
+  current = id; if (!keepTab) tab = 'intro';
+  const p = poseFor(id); flyTo(p.pos, p.tgt);
+  renderPanel();
+  panel.hidden = false;
+}
+function closePanel(){
+  panel.hidden = true; current = null;
+  const o = overviewPose(); flyTo(o.pos, o.tgt, 1.3);
+}
+function renderPanel(){
+  const z = ZONES.find(z => z.id === current), i = ZONES.indexOf(z);
+  const prev = ZONES[(i-1+ZONES.length)%ZONES.length], next = ZONES[(i+1)%ZONES.length];
+  panel.style.setProperty('--zc', z.color);
+  panel.innerHTML = `
+    <div class="card-h">
+      <div class="callno"><span class="hole"></span>索書號 ${esc(z.call)}</div>
+      <h2 id="zoneT">${esc(z.name)}</h2>
+      <div class="en">${esc(z.en)}　·　${esc(z.where)}</div>
+      <button class="x" id="pClose" aria-label="關閉卡片並回到全景">×</button>
+    </div>
+    <div class="tabs" role="tablist" aria-labelledby="zoneT">
+      ${TABS.map(([k,l]) => `<button class="tab" role="tab" id="tab-${k}" aria-selected="${k===tab}" data-tab="${k}">${l}${k==='quiz'&&badges.has(z.id)?' <span class="mark">★</span>':''}</button>`).join('')}
+    </div>
+    <div class="card-b" role="tabpanel" aria-labelledby="tab-${tab}">${tabBody(z)}</div>
+    <div class="card-f">
+      <button class="nav" data-go="${prev.id}">← ${esc(prev.name)}</button>
+      <button class="nav" data-go="${next.id}">${esc(next.name)} →</button>
+    </div>`;
+  panel.querySelector('#pClose').onclick = closePanel;
+  panel.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.tab; renderPanel(); panel.querySelector(`#tab-${tab}`).focus(); });
+  panel.querySelectorAll('[data-go]').forEach(b => b.onclick = () => openZone(b.dataset.go, true));
+  if (tab === 'quiz') wireQuiz(z);
+}
+function tabBody(z){
+  if (tab === 'intro') return `<p>${esc(z.intro)}</p>
+    <dl class="kv"><dt>位置</dt><dd>${esc(z.where)}</dd><dt>時間</dt><dd>${esc(z.hours)}</dd><dt>闖關</dt><dd>${badges.has(z.id)?'已取得徽章 ★':'尚未挑戰'}</dd></dl>`;
+  if (tab === 'rules') return `<dl class="kv"><dt>開放時間</dt><dd>${esc(z.hours)}</dd></dl>
+    <ol class="rules">${z.rules.map((r,i) => `<li><span>${String(i+1).padStart(2,'0')}</span>${esc(r)}</li>`).join('')}</ol>
+    <p class="src">依楊梅高中圖書館利用說明整理</p>`;
+  if (tab === 'faq') return z.faq.length ? `<div class="faqs">${z.faq.map(([q,a],i) => `
+    <details class="faq" ${i===0?'open':''}><summary><span>Q</span>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</div>
+    <p class="src">其餘問題可向圖書館人員洽詢，或到圖書館網站查詢。</p>`
+    : `<p>這一區目前沒有常見問答。有任何問題，歡迎向圖書館人員洽詢，或到圖書館網站查詢。</p>`;
+  const order = z.quiz.opts.map((o,i) => i).sort(() => Math.random() - .5);
+  return `${badges.has(z.id) ? `<div class="earned"><i></i>你已取得「${esc(z.name)}」徽章，可以再挑戰一次。</div>` : ''}
+    <p class="quiz-q">${esc(z.quiz.q)}</p>
+    <div class="opts">${order.map((oi,k) => `<button class="opt" data-i="${oi}"><span class="k">${'ABCD'[k]}</span>${esc(z.quiz.opts[oi])}</button>`).join('')}</div>
+    <div id="fbBox"></div>`;
+}
+function wireQuiz(z){
+  panel.querySelectorAll('.opt').forEach(b => b.onclick = () => {
+    const ok = +b.dataset.i === z.quiz.ans;
+    panel.querySelectorAll('.opt').forEach(o => { o.disabled = true; if (+o.dataset.i === z.quiz.ans) o.classList.add('right'); });
+    if (!ok) b.classList.add('wrong');
+    const fresh = ok && !badges.has(z.id);
+    if (ok){ badges.add(z.id); store.set('libisle.badges', [...badges]); renderBadges(); chime(true); }
+    else chime(false);
+    $('#fbBox').innerHTML = `<div class="fb"><b>${ok ? (fresh ? '答對了，收下徽章！' : '答對了！') : '再想想看。'}</b>${esc(z.quiz.explain)}</div>
+      ${ok ? '' : '<button class="retry" id="retry">再試一次</button>'}`;
+    const rt = $('#retry'); if (rt) rt.onclick = () => renderPanel();
+    panel.querySelector('#tab-quiz').innerHTML = '闖關' + (badges.has(z.id) ? ' <span class="mark">★</span>' : '');
+    if (fresh && badges.size === ZONES.length){ toast(`${ZONES.length} 枚徽章全部到手！你已經是圖書館達人了。`); confetti(); }
+    else if (fresh) toast(`取得「${z.name}」徽章（${badges.size}/${ZONES.length}）`);
+  });
+}
+
+/* ---------- list / help ---------- */
+function renderList(){
+  $('#listGrid').innerHTML = ZONES.map(z => `<button class="zc" data-z="${z.id}" style="--zc:${z.color}">
+    <small>${esc(z.call)}</small><b>${esc(z.name)}</b><span>${esc(z.intro.slice(0,38))}…</span>${badges.has(z.id)?'<em>★ 已取得徽章</em>':''}</button>`).join('');
+  $('#listGrid').querySelectorAll('[data-z]').forEach(b => b.onclick = () => { $('#list').hidden = true; openZone(b.dataset.z); });
+}
+$('#bList').onclick = () => { renderList(); $('#list').hidden = false; $('#listX').focus(); };
+$('#badges').onclick = $('#bList').onclick;
+$('#listX').onclick = () => $('#list').hidden = true;
+$('#bHelp').onclick = () => { $('#help').hidden = false; $('#helpGo').focus(); };
+$('#helpGo').onclick = () => { $('#help').hidden = true; store.set('libisle.seenHelp', true); };
+$('#bOverview').onclick = () => { panel.hidden = true; current = null; const o = overviewPose(); flyTo(o.pos, o.tgt, 1.3); };
+document.querySelectorAll('.ov').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.hidden = true; }));
+addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('#list').hidden) $('#list').hidden = true;
+  else if (!$('#help').hidden) $('#helpGo').click();
+  else if (!panel.hidden) closePanel();
+});
+document.querySelectorAll('[data-time]').forEach(b => b.onclick = () => setTime(b.dataset.time));
+let paused = false;
+const toggle = (btn, fn) => btn.onclick = () => { const v = btn.getAttribute('aria-pressed') !== 'true'; btn.setAttribute('aria-pressed', v); fn(v); };
+toggle($('#tLabels'), v => labelRenderer.domElement.hidden = !v);
+toggle($('#tCarts'), v => cartGroup.visible = v);
+toggle($('#tPause'), v => paused = v);
+
+/* ---------- feedback: sound, toast, confetti ---------- */
+let actx;
+function chime(ok){
+  try{
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const notes = ok ? [659.25, 987.77] : [311.13, 233.08];
+    notes.forEach((f,i) => {
+      const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + i*.12;
+      o.type = ok ? 'triangle' : 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.18, t+.02); g.gain.exponentialRampToValueAtTime(.001, t+.35);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t+.4);
+    });
+  }catch(e){}
+}
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
+function confetti(){
+  if (reduce) return;
+  const cv = $('#fx'), cx = cv.getContext('2d'); cv.width = innerWidth; cv.height = innerHeight;
+  const P = Array.from({length:180}, () => ({ x:innerWidth/2 + (Math.random()-.5)*200, y:innerHeight*.35, vx:(Math.random()-.5)*12, vy:-Math.random()*12-4, r:Math.random()*Math.PI, c:SDG[(Math.random()*17)|0], w:6+Math.random()*6 }));
+  let f = 0;
+  (function run(){
+    cx.clearRect(0,0,cv.width,cv.height);
+    for (const p of P){ p.vy += .35; p.x += p.vx; p.y += p.vy; p.r += .2; cx.save(); cx.translate(p.x,p.y); cx.rotate(p.r); cx.fillStyle = p.c; cx.fillRect(-p.w/2,-3,p.w,6); cx.restore(); }
+    if (++f < 150) requestAnimationFrame(run); else cx.clearRect(0,0,cv.width,cv.height);
+  })();
+}
+
+/* ---------- resize & loop ---------- */
+let lastAspect = 0;
+function resize(){
+  const w = host.clientWidth || innerWidth, h = host.clientHeight || innerHeight;
+  renderer.setSize(w, h); labelRenderer.setSize(w, h);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  // 轉向或視窗比例大幅改變時，重新對準目前的島或全景
+  const changed = lastAspect && Math.abs(camera.aspect - lastAspect) > .25;
+  lastAspect = camera.aspect;
+  if (changed && islands.length){
+    const p = current ? poseFor(current) : overviewPose();
+    flyTo(p.pos, p.tgt, .6);
+  }
+}
+let rzT; const queueResize = () => { clearTimeout(rzT); rzT = setTimeout(resize, 80); };
+addEventListener('resize', queueResize);
+addEventListener('orientationchange', queueResize);
+if (window.visualViewport) visualViewport.addEventListener('resize', queueResize);
+
+/* ---------- PWA：安裝、離線、更新 ---------- */
+let deferredPrompt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; $('#install').hidden = false; });
+$('#install').onclick = async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null; $('#install').hidden = true;
+  if (outcome === 'accepted') toast('已安裝圖書館島，可以從主畫面開啟。');
+};
+addEventListener('appinstalled', () => { $('#install').hidden = true; });
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (isIOS && !standalone) $('#iosTip').hidden = false;
+addEventListener('offline', () => toast('目前離線中，已下載的內容仍可使用。'));
+addEventListener('online',  () => toast('已恢復連線。'));
+if ('serviceWorker' in navigator && location.protocol !== 'file:'){
+  addEventListener('load', async () => {
+    try{
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      const offerUpdate = w => {
+        const t = $('#toast');
+        t.innerHTML = '有新版本可以更新 <button class="retry" id="doUpdate" style="margin:0 0 0 10px">更新</button>';
+        t.hidden = false;
+        $('#doUpdate').onclick = () => w.postMessage('SKIP_WAITING');
+      };
+      if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const w = reg.installing;
+        w && w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(w); });
+      });
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded){ reloaded = true; location.reload(); } });
+    }catch(e){ /* 無法註冊時仍可正常線上使用 */ }
+  });
+}
+
+const clock = new THREE.Clock(); let T = 0;
+function loop(){
+  const dt = Math.min(clock.getDelta(), .05);
+  if (!paused && !reduce){
+    T += dt;
+    islands.forEach((it,i) => { it.group.position.y = Math.sin(T*.8 + it.bobPhase) * .12; it.group.traverse(o => { if (o.userData.spin) o.rotation.y += dt*.4; }); });
+    for (const k of carts){ k.t = (k.t + dt*k.speed*k.dir + 1) % 1; const p = k.curve.getPoint(k.t), q = k.curve.getPoint(Math.min(.999, Math.max(.001, k.t + .01*k.dir))); k.c.position.copy(p).y += .25; k.c.lookAt(q.x, p.y+.25, q.z); k.c.rotateY(Math.PI/2); }
+    for (const r of ripples){ const s = ((T*.25 + r.ph) % 1); r.m.scale.setScalar(1 + s*.35); r.m.material.opacity = .32*(1-s); }
+    for (const c of clouds){ c.c.position.x += dt*c.sp; if (c.c.position.x > 90) c.c.position.x = -90; }
+  }
+  stepEnv(1 - Math.exp(-dt*2.2));
+  if (flight){
+    flight.t += dt / flight.dur;
+    const t = Math.min(1, flight.t), e = t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+    camera.position.lerpVectors(flight.p0, flight.p1, e); controls.target.lerpVectors(flight.t0, flight.t1, e);
+    if (t >= 1) flight = null;
+  }
+  controls.update();
+  renderer.render(scene, camera); labelRenderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- boot ---------- */
+(async function boot(){
+  try { await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]); } catch(e){}
+  resize();
+  ZONES.forEach((z,i) => makeIsland(z, z.id === 'hub' ? 0 : i-1));
+  makePaths(); cloudMat = makeClouds();
+  const o = overviewPose(); camera.position.copy(o.pos); controls.target.copy(o.tgt);
+  snapEnv(target); stepEnv(1); renderBadges();
+  if (!reduce){ camera.position.multiplyScalar(1.35); flyTo(o.pos, o.tgt, 2.2); }
+  loop();
+  setTimeout(() => $('#loader').classList.add('done'), 200);
+  if (!store.get('libisle.seenHelp', false)) $('#help').hidden = false;
+})();
+</script>
+</body>
+</html>

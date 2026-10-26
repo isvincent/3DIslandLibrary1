@@ -1,0 +1,21 @@
+{
+  "name": "楊梅高中圖書館島",
+  "short_name": "圖書館島",
+  "description": "楊梅高中圖書館 3D 互動導覽：十座島嶼對應館內十個空間，可查看規則、常見問答並闖關收集徽章。",
+  "lang": "zh-Hant",
+  "dir": "ltr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#1d3b4f",
+  "theme_color": "#2f56c9",
+  "categories": ["education", "books"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
